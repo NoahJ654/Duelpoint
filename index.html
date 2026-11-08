@@ -1,0 +1,103 @@
+
+<!doctype html>
+<html lang="en">
+<head>
+  <meta charset="utf-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1" />
+  <meta name="theme-color" content="#101827" />
+  <meta name="description" content="DuelPoint Yu-Gi-Oh! Swiss tournament manager" />
+  <title>DuelPoint — Tournament Manager</title>
+  <link rel="preconnect" href="https://fonts.googleapis.com">
+  <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+  <link href="https://fonts.googleapis.com/css2?family=Barlow+Condensed:wght@500;600;700;800&family=Inter:wght@400;500;600;700;800&display=swap" rel="stylesheet">
+  <link rel="stylesheet" href="styles.css" />
+  <script src="https://cdn.jsdelivr.net/npm/@supabase/supabase-js@2"></script>
+  <script defer src="app.js"></script>
+</head>
+<body>
+  <div class="app-shell">
+    <header class="topbar">
+      <a class="brand" href="#top" aria-label="DuelPoint home">
+        <span class="brand-mark">DP</span>
+        <span><strong>DUELPOINT</strong><small>TOURNAMENT CONTROL</small></span>
+      </a>
+      <div class="top-actions">
+        <span id="connectionStatus" class="connection"><i></i> Local preview</span>
+        <button id="settingsBtn" class="icon-btn" title="Settings" aria-label="Settings">⚙</button>
+      </div>
+    </header>
+
+    <main id="top">
+      <section class="hero">
+        <div>
+          <p class="eyebrow">YU-GI-OH! · SWISS FORMAT · UP TO 16 PLAYERS</p>
+          <h1>THE DUEL<br><em>STARTS HERE.</em></h1>
+          <p class="hero-copy">Run your rounds. Track every result. Crown your champion.</p>
+        </div>
+        <div class="hero-stamp"><span>50</span><small>MIN ROUND</small><b>+</b><span>05</span><small>MIN RESULTS</small></div>
+      </section>
+
+      <section id="setupPanel" class="panel setup-panel">
+        <div class="section-heading"><div><p class="eyebrow">TOURNAMENT SETUP</p><h2>Get the players in</h2></div><span class="step-tag">01 / SETUP</span></div>
+        <div class="setup-grid">
+          <form id="playerForm" class="player-entry">
+            <label for="playerName">ADD PLAYER</label>
+            <div class="input-row"><input id="playerName" maxlength="40" placeholder="Enter player name" autocomplete="off" required /><button class="primary-btn" type="submit">ADD PLAYER <span>＋</span></button></div>
+            <p class="muted">Maximum 16 players. Names must be unique.</p>
+          </form>
+          <div class="player-count-card"><span class="count-number" id="playerCount">0<span>/16</span></span><span class="muted">PLAYERS REGISTERED</span><div class="progress"><i id="playerProgress"></i></div></div>
+        </div>
+        <div id="registeredPlayers" class="registered-list"><p class="empty-state">No players registered yet. Add your first duelist above.</p></div>
+        <div class="setup-footer"><span id="setupHint" class="muted">Add at least 2 players to create Round 1.</span><button id="startTournamentBtn" class="primary-btn" disabled>CREATE ROUND 1 <span>→</span></button></div>
+      </section>
+
+      <section id="tournamentPanel" class="tournament-layout hidden">
+        <div class="main-column">
+          <section class="panel timer-panel">
+            <div class="section-heading"><div><p class="eyebrow">ROUND CONTROL</p><h2 id="roundTitle">Round 1</h2></div><span id="roundStatus" class="status-pill">READY</span></div>
+            <div class="timer-display" id="timerDisplay">50:00</div>
+            <div class="timer-phase" id="timerPhase">MATCH TIME · 50 MINUTES</div>
+            <div class="timer-track"><i id="timerProgress"></i></div>
+            <div class="timer-actions"><button id="startTimerBtn" class="primary-btn">START ROUND <span>▶</span></button><button id="pauseTimerBtn" class="secondary-btn" disabled>PAUSE</button><button id="resetTimerBtn" class="ghost-btn">RESET</button></div>
+            <p class="timer-note" id="timerNote">The 5-minute result window starts automatically when match time expires.</p>
+          </section>
+          <section class="panel matches-panel">
+            <div class="section-heading"><div><p class="eyebrow">LIVE PAIRINGS</p><h2>Round matches</h2></div><span id="matchCount" class="step-tag">0 MATCHES</span></div>
+            <div id="matchesList" class="matches-list"><p class="empty-state">Create a round to generate pairings.</p></div>
+            <div class="matches-footer"><button id="nextRoundBtn" class="primary-btn" disabled>COMPLETE ROUND &amp; NEXT <span>→</span></button></div>
+          </section>
+        </div>
+        <aside class="side-column">
+          <section class="panel leaderboard-panel">
+            <div class="section-heading"><div><p class="eyebrow">LIVE STANDINGS</p><h2>Leaderboard</h2></div><span class="trophy">♛</span></div>
+            <div class="table-wrap"><table><thead><tr><th>#</th><th>PLAYER</th><th>W</th><th>L</th><th>PTS</th></tr></thead><tbody id="leaderboardBody"><tr><td colspan="5" class="empty-cell">Standings will appear here.</td></tr></tbody></table></div>
+            <p class="table-footnote">3 points per win · 0 per loss · Ties broken by average opponent points.</p>
+          </section>
+          <section class="panel history-panel"><div class="section-heading"><div><p class="eyebrow">TOURNAMENT LOG</p><h2>Round history</h2></div></div><div id="roundHistory" class="history-list"><p class="empty-state">No completed rounds yet.</p></div></section>
+          <section class="panel danger-panel"><p class="eyebrow">TOURNAMENT ADMIN</p><button id="endTournamentBtn" class="danger-btn">END TOURNAMENT</button><p class="muted">Ending a tournament locks the current event. You can still review its results.</p></section>
+        </aside>
+      </section>
+    </main>
+    <footer><span>DUELPOINT <b>·</b> BUILT FOR YOUR LOCALS</span><span>Swiss pairing · 50 + 5 minute rounds</span></footer>
+  </div>
+
+  <dialog id="settingsDialog" class="modal">
+    <form method="dialog" class="modal-head"><div><p class="eyebrow">CONNECTION</p><h2>Online sync settings</h2></div><button class="icon-btn" aria-label="Close">✕</button></form>
+    <div class="modal-body">
+      <p>Connect a Supabase project to share this tournament across multiple devices. Add the project URL and anon/public key from your Supabase project settings.</p>
+      <label for="supabaseUrl">SUPABASE PROJECT URL</label><input id="supabaseUrl" placeholder="https://your-project.supabase.co" />
+      <label for="supabaseKey">SUPABASE ANON / PUBLISHABLE KEY</label><input id="supabaseKey" placeholder="sb_publishable_… or eyJ…" />
+      <div class="modal-actions"><button id="disconnectBtn" class="ghost-btn" type="button">USE LOCAL PREVIEW</button><button id="connectBtn" class="primary-btn" type="button">CONNECT</button></div>
+      <div class="divider"></div>
+      <p class="muted">Online mode requires the database schema in <code>supabase-schema.sql</code> to be installed. Sign in using the email magic link sent to your inbox. Use the same organiser account on each device.</p>
+      <form id="loginForm"><label for="organiserEmail">ORGANISER EMAIL</label><div class="input-row"><input id="organiserEmail" type="email" placeholder="you@example.com" required /><button class="secondary-btn" type="submit">SEND SIGN-IN LINK</button></div></form>
+      <p id="settingsMessage" class="settings-message" aria-live="polite"></p>
+    </div>
+  </dialog>
+  <dialog id="resultDialog" class="modal result-modal">
+    <form method="dialog" class="modal-head"><div><p class="eyebrow">MATCH RESULT</p><h2 id="resultMatchTitle">Record result</h2></div><button class="icon-btn" aria-label="Close">✕</button></form>
+    <div class="modal-body"><p id="resultWindowMessage" class="muted">Choose the winner. The other player will receive a loss.</p><div id="winnerChoices" class="winner-choices"></div><button id="saveResultBtn" class="primary-btn full-btn" disabled>SAVE RESULT</button></div>
+  </dialog>
+  <div id="toast" class="toast" role="status" aria-live="polite"></div>
+</body>
+</html>

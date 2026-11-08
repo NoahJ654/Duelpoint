@@ -1,284 +1,458 @@
 
+/* DUELPOINT - Complete tournament manager with Supabase sync */
 (() => {
   "use strict";
 
   const $ = id => document.getElementById(id);
-  const KEY = "duelpoint-v1";
-  const MATCH_TIME = 50 * 60;
-  const EXTRA_TIME = 5 * 60;
+  const STORAGE = "duelpoint-v1";
+  const MATCH_TIME = 3000;
+  const EXTRA_TIME = 300;
   const MAX_PLAYERS = 16;
 
-  let state = load();
+  const SUPABASE_URL = "https://ftgujisjygpcdtrgbzdk.supabase.co";
+  const SUPABASE_KEY = "sb_publishable_BvvXqO89ZysFP-nEsKXqRw_EvkC71Yj";
+
+  const db = window.supabase.createClient(SUPABASE_URL, SUPABASE_KEY);
+
+  let tournament = null;
+  let players = [];
+  let rounds = [];
+  let matches = [];
+  let user = null;
+  let online = false;
+  let channel = null;
   let selectedMatch = null;
   let selectedWinner = null;
-  let toastTimeout;
-  let timerInterval;
+  let timerBusy = false;
+  let refreshing = false;
+  let toastTimer = null;
 
-  function freshState() {
-    return {
-      tournament: {
-        status: "setup",
-        round: 0,
-        phase: "idle",
-        remaining: MATCH_TIME,
-        deadline: null
-      },
-      players: [],
-      rounds: []
-    };
+  const blankState = () => ({
+    tournament: {
+      id: "local",
+      status: "setup",
+      current_round: 0,
+      timer_phase: "idle",
+      timer_deadline: null,
+      timer_remaining_seconds: MATCH_TIME
+    },
+    players: [],
+    rounds: [],
+    matches: []
+  });
+
+  function toast(message) {
+    $("toast").textContent = message;
+    $("toast").classList.add("show");
+    clearTimeout(toastTimer);
+    toastTimer = setTimeout(() => $("toast").classList.remove("show"), 2800);
   }
 
-  function load() {
-    try {
-      const saved = JSON.parse(localStorage.getItem(KEY));
-      if (saved && saved.tournament && Array.isArray(saved.players)) {
-        return saved;
-      }
-    } catch (error) {
-      console.warn("Could not load saved tournament", error);
-    }
-    return freshState();
+  function message(text) {
+    $("settingsMessage").textContent = text;
   }
 
-function save() {
-  localStorage.setItem(KEY, JSON.stringify(state));
-}
-
-  function id() {
-    return crypto.randomUUID
-      ? crypto.randomUUID()
-      : Date.now().toString(36) + Math.random().toString(36).slice(2);
+  function connection(text, connected = false) {
+    $("connectionStatus").innerHTML = `<i></i> ${text}`;
+    $("connectionStatus").classList.toggle("online", connected);
   }
 
   function escapeHTML(value) {
-    return String(value).replace(/[&<>"']/g, character => ({
+    return String(value ?? "").replace(/[&<>"']/g, c => ({
       "&": "&amp;",
       "<": "&lt;",
       ">": "&gt;",
       '"': "&quot;",
       "'": "&#39;"
-    })[character]);
+    })[c]);
   }
 
-  function notify(message) {
-    const toast = $("toast");
-    toast.textContent = message;
-    toast.classList.add("show");
-    clearTimeout(toastTimeout);
-    toastTimeout = setTimeout(() => toast.classList.remove("show"), 2600);
+  function localSave() {
+    localStorage.setItem(STORAGE, JSON.stringify({
+      tournament, players, rounds, matches
+    }));
+  }
+
+  function localLoad() {
+    try {
+      const saved = JSON.parse(localStorage.getItem(STORAGE));
+      if (saved?.tournament) {
+        tournament = saved.tournament;
+        players = saved.players || [];
+        rounds = saved.rounds || [];
+        matches = saved.matches || [];
+        return;
+      }
+    } catch (e) {
+      console.warn("Local save could not be loaded", e);
+    }
+
+    const empty = blankState();
+    tournament = empty.tournament;
+    players = [];
+    rounds = [];
+    matches = [];
   }
 
   function currentRound() {
-    return state.rounds.find(round => round.number === state.tournament.round);
+    return rounds.find(r =>
+      r.round_number === tournament.current_round
+    );
   }
 
   function currentMatches() {
     const round = currentRound();
-    return round ? round.matches : [];
+    return round
+      ? matches.filter(m => m.round_id === round.id)
+          .sort((a, b) => a.table_number - b.table_number)
+      : [];
   }
 
-  function player(id) {
-    return state.players.find(item => item.id === id);
+  async function saveTournament(patch = {}) {
+    Object.assign(tournament, patch);
+    tournament.updated_at = new Date().toISOString();
+
+    if (online) {
+      const { error } = await db
+        .from("tournaments")
+        .update(patch)
+        .eq("id", tournament.id);
+
+      if (error) throw error;
+    } else {
+      localSave();
+    }
+
+    render();
   }
 
-  function statistics() {
-    const stats = state.players.map(item => ({
-      ...item,
+  async function addPlayer(name) {
+    const clean = name.trim();
+
+    if (!clean) return;
+    if (players.length >= MAX_PLAYERS) {
+      return toast("Maximum of 16 players.");
+    }
+
+    if (tournament.status !== "setup") {
+      return toast("Players cannot be added after the tournament starts.");
+    }
+
+    if (players.some(p =>
+      p.name.toLowerCase() === clean.toLowerCase()
+    )) {
+      return toast("That player is already registered.");
+    }
+
+    let newPlayer;
+
+    if (online) {
+      const { data, error } = await db
+        .from("players")
+        .insert({
+          tournament_id: tournament.id,
+          name: clean
+        })
+        .select()
+        .single();
+
+      if (error) throw error;
+      newPlayer = data;
+    } else {
+      newPlayer = {
+        id: crypto.randomUUID(),
+        name: clean
+      };
+    }
+
+    players.push(newPlayer);
+    if (!online) localSave();
+
+    $("playerName").value = "";
+    render();
+  }
+
+  async function removePlayer(id) {
+    if (online) {
+      const { error } = await db
+        .from("players")
+        .delete()
+        .eq("id", id);
+
+      if (error) throw error;
+    }
+
+    players = players.filter(p => p.id !== id);
+
+    if (!online) localSave();
+    render();
+  }
+
+  function standings() {
+    const stats = players.map(p => ({
+      player: p,
       wins: 0,
       losses: 0,
       points: 0,
+      opponentPoints: 0,
       opponents: [],
-      byes: 0,
-      opponentScore: 0
+      hadBye: false
     }));
 
-    const lookup = new Map(stats.map(item => [item.id, item]));
+    const lookup = new Map(stats.map(s => [s.player.id, s]));
 
-    state.rounds.forEach(round => {
-      round.matches.forEach(match => {
-        const a = lookup.get(match.player1);
-        const b = match.player2 ? lookup.get(match.player2) : null;
+    matches.forEach(m => {
+      const a = lookup.get(m.player_one_id);
+      const b = lookup.get(m.player_two_id);
 
-        if (match.status === "bye" && a) {
-          a.wins++;
-          a.points += 3;
-          a.byes++;
-        }
+      if (m.result_status === "bye" && a) {
+        a.wins++;
+        a.points += 3;
+        a.hadBye = true;
+      }
 
-        if (match.status === "complete" && a && b) {
-          a.opponents.push(b.id);
-          b.opponents.push(a.id);
+      if (m.result_status === "complete" && a && b) {
+        a.opponents.push(b.player.id);
+        b.opponents.push(a.player.id);
 
-          const winner = match.winner === a.id ? a : b;
-          const loser = winner === a ? b : a;
+        const winner = m.winner_id === a.player.id ? a : b;
+        const loser = winner === a ? b : a;
 
-          winner.wins++;
-          winner.points += 3;
-          loser.losses++;
-        }
-      });
+        winner.wins++;
+        winner.points += 3;
+        loser.losses++;
+      }
     });
 
-    stats.forEach(item => {
-      item.opponentScore = item.opponents.reduce((total, opponentId) => {
-        const opponent = lookup.get(opponentId);
-        return total + (opponent ? opponent.points : 0);
+    stats.forEach(s => {
+      s.opponentPoints = s.opponents.reduce((total, id) => {
+        return total + (lookup.get(id)?.points || 0);
       }, 0);
     });
 
     return stats.sort((a, b) =>
       b.points - a.points ||
-      b.opponentScore - a.opponentScore ||
+      b.opponentPoints - a.opponentPoints ||
       b.wins - a.wins ||
-      a.name.localeCompare(b.name)
+      a.player.name.localeCompare(b.player.name)
     );
   }
 
   function renderPlayers() {
-    const players = state.players;
-    $("playerCount").innerHTML = `${players.length}<span>/${MAX_PLAYERS}</span>`;
-    $("playerProgress").style.width = `${players.length / MAX_PLAYERS * 100}%`;
+    $("playerCount").innerHTML =
+      `${players.length}<span>/${MAX_PLAYERS}</span>`;
+
+    $("playerProgress").style.width =
+      `${players.length / MAX_PLAYERS * 100}%`;
+
+    $("playerName").disabled =
+      players.length >= MAX_PLAYERS ||
+      tournament.status !== "setup";
+
+    $("playerForm").querySelector("button").disabled =
+      players.length >= MAX_PLAYERS ||
+      tournament.status !== "setup";
 
     $("registeredPlayers").innerHTML = players.length
-      ? players.map((item, index) => `
+      ? players.map((p, i) => `
         <span class="player-chip">
-          <b>${String(index + 1).padStart(2, "0")}</b>
-          ${escapeHTML(item.name)}
-          <button data-remove="${item.id}" aria-label="Remove player">×</button>
+          <b>${String(i + 1).padStart(2, "0")}</b>
+          ${escapeHTML(p.name)}
+          ${tournament.status === "setup"
+            ? `<button data-remove="${p.id}" aria-label="Remove player">×</button>`
+            : ""}
         </span>
       `).join("")
       : '<p class="empty-state">No players registered yet. Add your first duelist above.</p>';
 
-    const locked = state.tournament.status !== "setup";
-    $("playerName").disabled = locked || players.length >= MAX_PLAYERS;
-    $("playerForm").querySelector("button").disabled = locked || players.length >= MAX_PLAYERS;
-    $("startTournamentBtn").disabled = players.length < 2 || locked;
-
     $("setupHint").textContent = players.length < 2
       ? "Add at least 2 players to create Round 1."
-      : `${players.length} players ready. ${players.length % 2 ? "One player will receive a bye." : "All players will be paired."}`;
+      : `${players.length} players ready. ${
+          players.length % 2
+            ? "One player will receive a bye."
+            : "All players will be paired."
+        }`;
+
+    $("startTournamentBtn").disabled =
+      players.length < 2 || tournament.status !== "setup";
   }
 
   function renderLeaderboard() {
-    const rows = statistics();
+    const rows = standings();
 
     $("leaderboardBody").innerHTML = rows.length
-      ? rows.map((item, index) => `
+      ? rows.map((s, i) => `
         <tr>
-          <td>${index === 0 ? "♛" : index + 1}</td>
-          <td class="player-cell">${escapeHTML(item.name)}</td>
-          <td>${item.wins}</td>
-          <td>${item.losses}</td>
-          <td class="points-cell">${item.points}</td>
+          <td>${i === 0 ? "♛" : i + 1}</td>
+          <td class="player-cell">${escapeHTML(s.player.name)}</td>
+          <td>${s.wins}</td>
+          <td>${s.losses}</td>
+          <td class="points-cell">${s.points}</td>
         </tr>
       `).join("")
       : '<tr><td colspan="5" class="empty-cell">Standings will appear here.</td></tr>';
   }
 
   function renderMatches() {
-    const matches = currentMatches();
+    const list = currentMatches();
 
     $("matchCount").textContent =
-      `${matches.length} MATCH${matches.length === 1 ? "" : "ES"}`;
+      `${list.length} MATCH${list.length === 1 ? "" : "ES"}`;
 
-    $("matchesList").innerHTML = matches.length
-      ? matches.map((match, index) => {
-        const first = player(match.player1);
-        const second = player(match.player2);
-        const winner = player(match.winner);
+    $("matchesList").innerHTML = list.length
+      ? list.map(m => {
+        const p1 = players.find(p => p.id === m.player_one_id);
+        const p2 = players.find(p => p.id === m.player_two_id);
+        const winner = players.find(p => p.id === m.winner_id);
+
+        const canEnter =
+          tournament.status === "active" &&
+          tournament.timer_phase !== "complete";
 
         return `
           <article class="match-card">
-            <span class="match-number">${String(index + 1).padStart(2, "0")}</span>
+            <span class="match-number">
+              ${String(m.table_number).padStart(2, "0")}
+            </span>
             <div>
               <div class="match-players">
-                <span>${escapeHTML(first?.name || "Unknown")}</span>
-                ${second
-                  ? `<span class="vs">VS</span><span>${escapeHTML(second.name)}</span>`
+                <span>${escapeHTML(p1?.name || "Unknown")}</span>
+                ${p2
+                  ? `<span class="vs">VS</span><span>${escapeHTML(p2.name)}</span>`
                   : '<span class="bye-label">ROUND BYE · 3 PTS</span>'}
               </div>
               <div class="match-meta">
-                ${match.status === "complete"
+                ${m.result_status === "complete"
                   ? `WINNER: ${escapeHTML(winner?.name || "Unknown")}`
-                  : match.status === "bye"
+                  : m.result_status === "bye"
                     ? "Automatic bye win"
                     : "Awaiting result"}
               </div>
             </div>
             <div class="match-actions">
-              ${match.status === "complete" || match.status === "bye"
+              ${m.result_status === "complete" || m.result_status === "bye"
                 ? '<span class="result-done">RECORDED ✓</span>'
-                : `<button class="result-btn" data-result="${match.id}" ${state.tournament.phase === "complete" || state.tournament.status !== "active" ? "disabled" : ""}>ENTER RESULT</button>`}
+                : `<button class="result-btn" data-result="${m.id}" ${canEnter ? "" : "disabled"}>ENTER RESULT</button>`}
             </div>
           </article>
         `;
       }).join("")
-      : '<p class="empty-state">No matches have been generated.</p>';
+      : '<p class="empty-state">Create a round to generate pairings.</p>';
 
-    const allComplete = matches.length > 0 &&
-      matches.every(match => ["complete", "bye"].includes(match.status));
+    const allDone = list.length > 0 &&
+      list.every(m =>
+        m.result_status === "complete" ||
+        m.result_status === "bye"
+      );
 
     $("nextRoundBtn").disabled =
-      !allComplete ||
-      state.tournament.phase !== "complete" ||
-      state.tournament.status !== "active";
+      !allDone ||
+      tournament.status !== "active" ||
+      tournament.timer_phase !== "complete";
 
     $("nextRoundBtn").textContent =
-      state.tournament.phase === "complete"
+      tournament.timer_phase === "complete"
         ? "COMPLETE ROUND & NEXT →"
         : "WAIT FOR ROUND TIMER TO FINISH";
   }
 
   function renderHistory() {
-    const completed = state.rounds.filter(round => round.completed);
+    const done = rounds
+      .filter(r => r.status === "complete")
+      .sort((a, b) => b.round_number - a.round_number);
 
-    $("roundHistory").innerHTML = completed.length
-      ? completed.slice().reverse().map(round => `
-        <div class="history-item">
-          <span>ROUND ${round.number}</span>
-          <strong>${round.matches.length}/${round.matches.length} RESULTS</strong>
-        </div>
-      `).join("")
+    $("roundHistory").innerHTML = done.length
+      ? done.map(r => {
+        const list = matches.filter(m => m.round_id === r.id);
+        const count = list.filter(m =>
+          m.result_status === "complete" ||
+          m.result_status === "bye"
+        ).length;
+
+        return `
+          <div class="history-item">
+            <span>ROUND ${r.round_number}</span>
+            <strong>${count}/${list.length} RESULTS</strong>
+          </div>
+        `;
+      }).join("")
       : '<p class="empty-state">No completed rounds yet.</p>';
   }
 
-  function renderTimer() {
-    const tournament = state.tournament;
-    let remaining = tournament.remaining;
+  async function updateTimerPhase(phase, seconds, deadline = null) {
+    await saveTournament({
+      timer_phase: phase,
+      timer_remaining_seconds: seconds,
+      timer_deadline: deadline,
+      timer_phase_started_at: new Date().toISOString()
+    });
+  }
 
-    if (["running", "extra"].includes(tournament.phase) && tournament.deadline) {
+  async function timerTick() {
+    if (!tournament || tournament.status !== "active") return;
+
+    const phase = tournament.timer_phase;
+    if (phase !== "running" && phase !== "extra") {
+      renderTimer();
+      return;
+    }
+
+    const deadline = tournament.timer_deadline
+      ? new Date(tournament.timer_deadline).getTime()
+      : 0;
+
+    const remaining = Math.max(
+      0,
+      Math.ceil((deadline - Date.now()) / 1000)
+    );
+
+    if (remaining <= 0 && !timerBusy) {
+      timerBusy = true;
+
+      try {
+        if (phase === "running") {
+          await updateTimerPhase(
+            "extra",
+            EXTRA_TIME,
+            new Date(Date.now() + EXTRA_TIME * 1000).toISOString()
+          );
+          toast("Match time is up! Five-minute result window started.");
+        } else {
+          await updateTimerPhase("complete", 0, null);
+          toast("Result-entry time has ended.");
+        }
+      } catch (e) {
+        showError(e);
+      } finally {
+        timerBusy = false;
+      }
+    } else {
+      tournament.timer_remaining_seconds = remaining;
+      renderTimer();
+    }
+  }
+
+  function renderTimer() {
+    const phase = tournament.timer_phase || "idle";
+    let remaining = Number(
+      tournament.timer_remaining_seconds ?? MATCH_TIME
+    );
+
+    if ((phase === "running" || phase === "extra") &&
+        tournament.timer_deadline) {
       remaining = Math.max(
         0,
-        Math.ceil((tournament.deadline - Date.now()) / 1000)
+        Math.ceil(
+          (new Date(tournament.timer_deadline).getTime() - Date.now()) / 1000
+        )
       );
     }
 
-    if (tournament.phase === "running" && remaining <= 0) {
-      tournament.phase = "extra";
-      tournament.remaining = EXTRA_TIME;
-      tournament.deadline = Date.now() + EXTRA_TIME * 1000;
-      remaining = EXTRA_TIME;
-      save();
-      notify("Match time is up! The 5-minute result window has started.");
-    }
+    const mm = String(Math.floor(remaining / 60)).padStart(2, "0");
+    const ss = String(remaining % 60).padStart(2, "0");
 
-    if (tournament.phase === "extra" && remaining <= 0) {
-      tournament.phase = "complete";
-      tournament.remaining = 0;
-      tournament.deadline = null;
-      remaining = 0;
-      save();
-      notify("Result-entry time has ended.");
-    }
+    $("timerDisplay").textContent = `${mm}:${ss}`;
 
-    tournament.remaining = remaining;
-
-    const minutes = String(Math.floor(remaining / 60)).padStart(2, "0");
-    const seconds = String(remaining % 60).padStart(2, "0");
-
-    $("timerDisplay").textContent = `${minutes}:${seconds}`;
-
-    const phase = tournament.phase;
     $("timerPhase").textContent =
       phase === "extra" ? "EXTRA TIME · RESULT ENTRY" :
       phase === "complete" ? "ROUND TIME COMPLETE" :
@@ -297,7 +471,7 @@ function save() {
 
     const total = phase === "extra" ? EXTRA_TIME : MATCH_TIME;
     $("timerProgress").style.width =
-      `${Math.max(0, remaining / total * 100)}%`;
+      `${Math.max(0, Math.min(100, remaining / total * 100))}%`;
 
     $("startTimerBtn").disabled =
       ["running", "extra", "complete"].includes(phase) ||
@@ -307,7 +481,7 @@ function save() {
       phase === "paused" ? "RESUME ROUND ▶" : "START ROUND ▶";
 
     $("pauseTimerBtn").disabled =
-      !["running", "extra"].includes(phase);
+      phase !== "running" && phase !== "extra";
 
     $("resetTimerBtn").disabled = tournament.status !== "active";
 
@@ -318,11 +492,13 @@ function save() {
           ? "The 5-minute result-entry window has closed."
           : "The 5-minute result-entry window starts automatically when match time expires.";
 
-    $("roundTitle").textContent = `Round ${tournament.round}`;
+    $("roundTitle").textContent =
+      `Round ${tournament.current_round || 1}`;
   }
 
   function render() {
-    const active = state.tournament.status !== "setup";
+    const active = tournament.status !== "setup";
+
     $("setupPanel").classList.toggle("hidden", active);
     $("tournamentPanel").classList.toggle("hidden", !active);
 
@@ -336,137 +512,162 @@ function save() {
     }
   }
 
-  function addPlayer(name) {
-    name = name.trim();
+  function previousOpponents(playerId) {
+    const seen = new Set();
 
-    if (!name) return;
-    if (state.players.length >= MAX_PLAYERS) {
-      return notify("Maximum of 16 players reached.");
-    }
+    matches.forEach(m => {
+      if (m.player_one_id === playerId && m.player_two_id) {
+        seen.add(m.player_two_id);
+      }
+      if (m.player_two_id === playerId && m.player_one_id) {
+        seen.add(m.player_one_id);
+      }
+    });
 
-    if (state.players.some(item => item.name.toLowerCase() === name.toLowerCase())) {
-      return notify("That player is already registered.");
-    }
-
-    state.players.push({ id: id(), name });
-    $("playerName").value = "";
-    save();
-    renderPlayers();
+    return seen;
   }
 
-  function removePlayer(playerId) {
-    state.players = state.players.filter(item => item.id !== playerId);
-    save();
-    renderPlayers();
-  }
+  function makePairings() {
+    const ranked = standings().map(s => s.player);
+    let bye = null;
 
-  function createPairings() {
-    const standings = statistics();
-    const remaining = standings.map(item => item.id);
-    const previousPairs = new Set();
+    if (ranked.length % 2) {
+      for (let i = ranked.length - 1; i >= 0; i--) {
+        const hadBye = matches.some(m =>
+          m.result_status === "bye" &&
+          m.player_one_id === ranked[i].id
+        );
 
-    state.rounds.forEach(round => {
-      round.matches.forEach(match => {
-        if (match.player2) {
-          previousPairs.add([match.player1, match.player2].sort().join("|"));
+        if (!hadBye) {
+          bye = ranked.splice(i, 1)[0];
+          break;
         }
-      });
-    });
+      }
 
-    const matches = [];
-
-    // Give a bye to the lowest-ranked player who has not already had one.
-    if (remaining.length % 2) {
-      const byePlayer = [...standings].reverse().find(item =>
-        remaining.includes(item.id) &&
-        !state.rounds.some(round =>
-          round.matches.some(match => match.status === "bye" && match.player1 === item.id)
-        )
-      ) || standings[standings.length - 1];
-
-      remaining.splice(remaining.indexOf(byePlayer.id), 1);
-      matches.push({
-        id: id(),
-        player1: byePlayer.id,
-        player2: null,
-        winner: byePlayer.id,
-        status: "bye"
-      });
+      if (!bye) bye = ranked.pop();
     }
 
-    // Pair players with similar scores, avoiding repeat opponents where possible.
-    while (remaining.length) {
-      const first = remaining.shift();
-      let opponentIndex = remaining.findIndex(second =>
-        !previousPairs.has([first, second].sort().join("|"))
-      );
+    const pairs = [];
 
-      if (opponentIndex === -1) opponentIndex = 0;
+    while (ranked.length) {
+      const first = ranked.shift();
+      const previous = previousOpponents(first.id);
 
-      const second = remaining.splice(opponentIndex, 1)[0];
+      let index = ranked.findIndex(p => !previous.has(p.id));
+      if (index < 0) index = 0;
 
-      matches.push({
-        id: id(),
-        player1: first,
-        player2: second,
-        winner: null,
-        status: "pending"
-      });
+      const second = ranked.splice(index, 1)[0];
+      pairs.push([first, second]);
     }
 
-    return matches;
+    if (bye) pairs.push([bye, null]);
+
+    return pairs;
   }
 
-  function startTournament() {
-    if (state.players.length < 2) return;
+  async function createRound(number) {
+    const pairs = makePairings();
+    let round;
 
-    if (!confirm(`Create Round 1 with ${state.players.length} players?`)) return;
+    if (online) {
+      const { data, error } = await db
+        .from("rounds")
+        .insert({
+          tournament_id: tournament.id,
+          round_number: number,
+          status: "active"
+        })
+        .select()
+        .single();
 
-    state.tournament.status = "active";
-    state.tournament.round = 1;
-    state.rounds.push({
-      number: 1,
-      matches: createPairings(),
-      completed: false
+      if (error) throw error;
+      round = data;
+    } else {
+      round = {
+        id: crypto.randomUUID(),
+        tournament_id: tournament.id,
+        round_number: number,
+        status: "active"
+      };
+    }
+
+    rounds.push(round);
+
+    for (let i = 0; i < pairs.length; i++) {
+      const [a, b] = pairs[i];
+
+      const row = {
+        round_id: round.id,
+        table_number: i + 1,
+        player_one_id: a.id,
+        player_two_id: b?.id || null,
+        winner_id: b ? null : a.id,
+        result_status: b ? "pending" : "bye"
+      };
+
+      let match;
+
+      if (online) {
+        const { data, error } = await db
+          .from("matches")
+          .insert(row)
+          .select()
+          .single();
+
+        if (error) throw error;
+        match = data;
+      } else {
+        match = { id: crypto.randomUUID(), ...row };
+      }
+
+      matches.push(match);
+    }
+
+    await saveTournament({
+      status: "active",
+      current_round: number,
+      timer_phase: "idle",
+      timer_deadline: null,
+      timer_remaining_seconds: MATCH_TIME
     });
-
-    resetRoundTimer();
-    save();
-    render();
-    notify("Round 1 pairings are ready.");
   }
 
-  function resetRoundTimer() {
-    state.tournament.phase = "idle";
-    state.tournament.remaining = MATCH_TIME;
-    state.tournament.deadline = null;
+  async function startTournament() {
+    if (players.length < 2) return;
+
+    if (!confirm(
+      `Create Round 1 with ${players.length} players?`
+    )) return;
+
+    await createRound(1);
+    toast("Round 1 pairings are ready.");
   }
 
-  function openResult(matchId) {
-    const match = currentMatches().find(item => item.id === matchId);
+  function openResult(id) {
+    const match = matches.find(m => m.id === id);
+    if (!match || match.result_status !== "pending") return;
 
-    if (!match || match.status !== "pending") return;
-    if (state.tournament.phase === "complete") {
-      return notify("The result-entry window has closed.");
+    if (tournament.timer_phase === "complete") {
+      return toast("The result-entry window has closed.");
     }
 
     selectedMatch = match;
     selectedWinner = null;
 
-    const first = player(match.player1);
-    const second = player(match.player2);
+    const p1 = players.find(p => p.id === match.player_one_id);
+    const p2 = players.find(p => p.id === match.player_two_id);
 
     $("resultMatchTitle").textContent =
-      `Table ${currentMatches().indexOf(match) + 1} · ${first.name} vs ${second.name}`;
+      `Table ${match.table_number} · ${p1.name} vs ${p2.name}`;
 
     $("resultWindowMessage").textContent =
-      state.tournament.phase === "extra"
-        ? "Extra time is active. Select the match winner."
+      tournament.timer_phase === "extra"
+        ? "Extra time is active. Select the winner."
         : "Select the winner. The other player receives a loss.";
 
-    $("winnerChoices").innerHTML = [first, second].map(item => `
-      <button class="winner-choice" data-winner="${item.id}">
-        ${escapeHTML(item.name)} <span>— WINNER</span>
+    $("winnerChoices").innerHTML = [p1, p2].map(p => `
+      <button class="winner-choice" data-winner="${p.id}">
+        ${escapeHTML(p.name)} <span>— WINNER</span>
       </button>
     `).join("");
 
@@ -474,197 +675,416 @@ function save() {
     $("resultDialog").showModal();
   }
 
-  function saveResult() {
+  async function saveResult() {
     if (!selectedMatch || !selectedWinner) return;
 
-    selectedMatch.winner = selectedWinner;
-    selectedMatch.status = "complete";
+    const patch = {
+      winner_id: selectedWinner,
+      result_status: "complete"
+    };
 
-    save();
+    if (online) {
+      const { error } = await db
+        .from("matches")
+        .update(patch)
+        .eq("id", selectedMatch.id);
+
+      if (error) throw error;
+    }
+
+    Object.assign(selectedMatch, patch);
+
+    if (!online) localSave();
+
     $("resultDialog").close();
     selectedMatch = null;
     selectedWinner = null;
+
     render();
-    notify("Match result saved.");
+    toast("Match result saved.");
   }
 
-  function startTimer() {
-    const tournament = state.tournament;
+  async function startTimer() {
+    const phase = tournament.timer_phase;
+    const seconds = phase === "paused"
+      ? Number(tournament.timer_remaining_seconds)
+      : MATCH_TIME;
 
-    if (tournament.phase === "paused") {
-      tournament.deadline = Date.now() + tournament.remaining * 1000;
-      tournament.phase = tournament.resumePhase || "running";
-      tournament.resumePhase = null;
-    } else {
-      tournament.remaining = MATCH_TIME;
-      tournament.deadline = Date.now() + MATCH_TIME * 1000;
-      tournament.phase = "running";
-    }
+    const nextPhase = phase === "paused"
+      ? tournament.timer_resume_phase || "running"
+      : "running";
 
-    save();
-    render();
-    notify("Round timer started.");
+    await saveTournament({
+      timer_phase: nextPhase,
+      timer_resume_phase: null,
+      timer_remaining_seconds: seconds,
+      timer_deadline: new Date(
+        Date.now() + seconds * 1000
+      ).toISOString()
+    });
+
+    toast(phase === "paused" ? "Timer resumed." : "Round timer started.");
   }
 
-  function pauseTimer() {
-    const tournament = state.tournament;
-    if (!["running", "extra"].includes(tournament.phase)) return;
+  async function pauseTimer() {
+    if (!["running", "extra"].includes(tournament.timer_phase)) return;
 
-    tournament.remaining = Math.max(
+    const remaining = Math.max(
       0,
-      Math.ceil((tournament.deadline - Date.now()) / 1000)
+      Math.ceil(
+        (new Date(tournament.timer_deadline).getTime() - Date.now()) / 1000
+      )
     );
 
-    tournament.resumePhase = tournament.phase;
-    tournament.phase = "paused";
-    tournament.deadline = null;
+    await saveTournament({
+      timer_resume_phase: tournament.timer_phase,
+      timer_phase: "paused",
+      timer_remaining_seconds: remaining,
+      timer_deadline: null
+    });
 
-    save();
-    render();
-    notify("Timer paused.");
+    toast("Timer paused.");
   }
 
-  function resetTimer() {
-    if (!confirm("Reset this round timer to 50:00?")) return;
-    resetRoundTimer();
-    save();
-    render();
+  async function resetTimer() {
+    if (!confirm("Reset the timer to 50:00?")) return;
+
+    await saveTournament({
+      timer_phase: "idle",
+      timer_resume_phase: null,
+      timer_remaining_seconds: MATCH_TIME,
+      timer_deadline: null
+    });
+
+    toast("Timer reset.");
   }
 
-  function nextRound() {
-    const matches = currentMatches();
-    const allComplete = matches.length > 0 &&
-      matches.every(match => ["complete", "bye"].includes(match.status));
+  async function nextRound() {
+    const list = currentMatches();
 
-    if (!allComplete) return notify("Record every match result first.");
-    if (state.tournament.phase !== "complete") {
-      return notify("Wait until the 50 + 5 minute timer has finished.");
+    const allDone = list.length > 0 &&
+      list.every(m =>
+        m.result_status === "complete" ||
+        m.result_status === "bye"
+      );
+
+    if (!allDone) return toast("Record every match result first.");
+
+    if (tournament.timer_phase !== "complete") {
+      return toast("Wait until the 50 + 5 minute timer has finished.");
     }
 
     const round = currentRound();
-    round.completed = true;
 
-    // Standard Swiss round count: ceil(log2(number of players)).
-    const totalRounds = Math.ceil(Math.log2(state.players.length));
+    if (online) {
+      const { error } = await db
+        .from("rounds")
+        .update({ status: "complete" })
+        .eq("id", round.id);
 
-    if (state.tournament.round >= totalRounds) {
-      state.tournament.status = "finished";
-      save();
-      render();
-      notify("Tournament complete! Final standings are ready.");
+      if (error) throw error;
+    }
+
+    round.status = "complete";
+
+    const totalRounds = Math.ceil(Math.log2(players.length));
+
+    if (tournament.current_round >= totalRounds) {
+      await saveTournament({
+        status: "finished",
+        timer_phase: "complete",
+        timer_deadline: null,
+        timer_remaining_seconds: 0
+      });
+
+      toast("Tournament complete! Final standings are ready.");
       return;
     }
 
-    state.tournament.round++;
-    state.rounds.push({
-      number: state.tournament.round,
-      matches: createPairings(),
-      completed: false
+    await createRound(tournament.current_round + 1);
+    toast(`Round ${tournament.current_round} pairings generated.`);
+  }
+
+  async function endTournament() {
+    if (!confirm("End this tournament now?")) return;
+
+    await saveTournament({
+      status: "finished",
+      timer_phase: "complete",
+      timer_deadline: null,
+      timer_remaining_seconds: 0
     });
 
-    resetRoundTimer();
-    save();
-    render();
-    notify(`Round ${state.tournament.round} pairings generated.`);
+    toast("Tournament ended.");
   }
 
-  function endTournament() {
-    if (!confirm("End this tournament now? Results will remain saved on this device.")) return;
+  async function loadOnline() {
+    if (refreshing) return;
+    refreshing = true;
 
-    state.tournament.status = "finished";
-    state.tournament.phase = "complete";
-    state.tournament.deadline = null;
-    state.tournament.remaining = 0;
+    try {
+      const { data: t, error: te } = await db
+        .from("tournaments")
+        .select("*")
+        .eq("owner_id", user.id)
+        .order("created_at", { ascending: false })
+        .limit(1)
+        .maybeSingle();
 
-    save();
-    render();
-    notify("Tournament ended.");
-  }
+      if (te) throw te;
 
-  function tick() {
-    if (state.tournament.status === "active") {
-      renderTimer();
-      renderMatches();
-      save();
+      if (!t) {
+        const { data, error } = await db
+          .from("tournaments")
+          .insert({
+            owner_id: user.id,
+            name: "Yu-Gi-Oh! Local Tournament"
+          })
+          .select()
+          .single();
+
+        if (error) throw error;
+        tournament = data;
+      } else {
+        tournament = t;
+      }
+
+      const [p, r, m] = await Promise.all([
+        db.from("players")
+          .select("*")
+          .eq("tournament_id", tournament.id)
+          .order("created_at"),
+
+        db.from("rounds")
+          .select("*")
+          .eq("tournament_id", tournament.id)
+          .order("round_number"),
+
+        db.from("matches")
+          .select("*, rounds!inner(tournament_id)")
+          .eq("rounds.tournament_id", tournament.id)
+      ]);
+
+      if (p.error) throw p.error;
+      if (r.error) throw r.error;
+      if (m.error) throw m.error;
+
+      players = p.data || [];
+      rounds = r.data || [];
+      matches = (m.data || []).map(({ rounds: unused, ...match }) => match);
+
+      online = true;
+      connection("Online · synced", true);
+      render();
+    } finally {
+      refreshing = false;
     }
   }
 
-  // Settings are prepared for the later shared Supabase setup.
-  $("settingsBtn").addEventListener("click", () => {
-    $("settingsDialog").showModal();
-  });
+  function subscribeRealtime() {
+    if (channel) db.removeChannel(channel);
 
-  $("connectBtn").addEventListener("click", () => {
-    $("settingsMessage").textContent =
-      "Online sharing is not configured yet. We will set up Supabase after the local tournament has been tested.";
-  });
+    channel = db.channel("duelpoint-live")
+      .on("postgres_changes", {
+        event: "*",
+        schema: "public",
+        table: "tournaments"
+      }, () => loadOnline().catch(showError))
+      .on("postgres_changes", {
+        event: "*",
+        schema: "public",
+        table: "players"
+      }, () => loadOnline().catch(showError))
+      .on("postgres_changes", {
+        event: "*",
+        schema: "public",
+        table: "rounds"
+      }, () => loadOnline().catch(showError))
+      .on("postgres_changes", {
+        event: "*",
+        schema: "public",
+        table: "matches"
+      }, () => loadOnline().catch(showError))
+      .subscribe();
+  }
 
-  $("disconnectBtn").addEventListener("click", () => {
-    $("settingsMessage").textContent =
-      "Local preview mode. Tournament data is saved in this browser only.";
-  });
+  async function connect() {
+    const { data, error } = await db.auth.getSession();
+    if (error) throw error;
 
-  $("loginForm").addEventListener("submit", event => {
+    if (data.session) {
+      user = data.session.user;
+      await loadOnline();
+      subscribeRealtime();
+      $("settingsDialog").close();
+      toast("Connected to shared tournament data.");
+    } else {
+      message("Connection ready. Enter your organiser email and request a sign-in link.");
+      connection("Sign-in required");
+    }
+  }
+
+  async function sendLogin(event) {
     event.preventDefault();
-    $("settingsMessage").textContent =
-      "Online sign-in will be enabled after Supabase is configured.";
+
+    const email = $("organiserEmail").value.trim();
+    if (!email) return;
+
+    const { error } = await db.auth.signInWithOtp({
+      email,
+      options: {
+        emailRedirectTo: location.origin + location.pathname
+      }
+    });
+
+    if (error) throw error;
+
+    message("Sign-in link sent. Check your email and open the link on this device.");
+  }
+
+  async function boot() {
+    try {
+      const { data, error } = await db.auth.getSession();
+      if (error) throw error;
+
+      if (data.session) {
+        user = data.session.user;
+        await loadOnline();
+        subscribeRealtime();
+      } else {
+        localLoad();
+        connection("Sign-in required");
+        render();
+      }
+    } catch (e) {
+      console.error(e);
+      localLoad();
+      connection("Local preview");
+      render();
+      message("Cloud connection could not be loaded: " + e.message);
+    }
+
+    db.auth.onAuthStateChange(async (event, session) => {
+      if (session && !online) {
+        user = session.user;
+
+        try {
+          await loadOnline();
+          subscribeRealtime();
+          $("settingsDialog").close();
+          toast("Signed in and synchronised.");
+        } catch (e) {
+          showError(e);
+        }
+      }
+
+      if (!session && event === "SIGNED_OUT") {
+        online = false;
+        user = null;
+        if (channel) db.removeChannel(channel);
+        localLoad();
+        render();
+        connection("Signed out");
+      }
+    });
+  }
+
+  function showError(error) {
+    console.error(error);
+    toast(error?.message || "Something went wrong.");
+  }
+
+  // User interface events
+
+  $("playerForm").addEventListener("submit", e => {
+    e.preventDefault();
+    addPlayer($("playerName").value).catch(showError);
   });
 
-  $("playerForm").addEventListener("submit", event => {
-    event.preventDefault();
-    addPlayer($("playerName").value);
-  });
-
-  $("registeredPlayers").addEventListener("click", event => {
-    const button = event.target.closest("[data-remove]");
+  $("registeredPlayers").addEventListener("click", e => {
+    const button = e.target.closest("[data-remove]");
     if (button && confirm("Remove this player?")) {
-      removePlayer(button.dataset.remove);
+      removePlayer(button.dataset.remove).catch(showError);
     }
   });
 
-  $("startTournamentBtn").addEventListener("click", startTournament);
+  $("startTournamentBtn").addEventListener("click", () =>
+    startTournament().catch(showError)
+  );
 
-  $("matchesList").addEventListener("click", event => {
-    const button = event.target.closest("[data-result]");
+  $("matchesList").addEventListener("click", e => {
+    const button = e.target.closest("[data-result]");
     if (button) openResult(button.dataset.result);
   });
 
-  $("winnerChoices").addEventListener("click", event => {
-    const button = event.target.closest("[data-winner]");
+  $("winnerChoices").addEventListener("click", e => {
+    const button = e.target.closest("[data-winner]");
     if (!button) return;
 
     selectedWinner = button.dataset.winner;
 
-    document.querySelectorAll(".winner-choice").forEach(choice => {
-      choice.classList.toggle("selected", choice === button);
+    document.querySelectorAll(".winner-choice").forEach(item => {
+      item.classList.toggle("selected", item === button);
     });
 
     $("saveResultBtn").disabled = false;
   });
 
-  $("saveResultBtn").addEventListener("click", saveResult);
-  $("startTimerBtn").addEventListener("click", startTimer);
-  $("pauseTimerBtn").addEventListener("click", pauseTimer);
-  $("resetTimerBtn").addEventListener("click", resetTimer);
-  $("nextRoundBtn").addEventListener("click", nextRound);
-  $("endTournamentBtn").addEventListener("click", endTournament);
+  $("saveResultBtn").addEventListener("click", () =>
+    saveResult().catch(showError)
+  );
 
-  // Recover an active timer accurately after refreshing the page.
-  if (state.tournament.deadline &&
-      ["running", "extra"].includes(state.tournament.phase)) {
-    state.tournament.remaining = Math.max(
-      0,
-      Math.ceil((state.tournament.deadline - Date.now()) / 1000)
-    );
-  }
+  $("startTimerBtn").addEventListener("click", () =>
+    startTimer().catch(showError)
+  );
 
-  if (state.tournament.status === "finished") {
-    state.tournament.phase = "complete";
-  }
+  $("pauseTimerBtn").addEventListener("click", () =>
+    pauseTimer().catch(showError)
+  );
 
-  save();
-  render();
-  $("connectionStatus").innerHTML = "<i></i> Local preview";
+  $("resetTimerBtn").addEventListener("click", () =>
+    resetTimer().catch(showError)
+  );
 
-  timerInterval = setInterval(tick, 500);
+  $("nextRoundBtn").addEventListener("click", () =>
+    nextRound().catch(showError)
+  );
+
+  $("endTournamentBtn").addEventListener("click", () =>
+    endTournament().catch(showError)
+  );
+
+  $("settingsBtn").addEventListener("click", () =>
+    $("settingsDialog").showModal()
+  );
+
+  $("connectBtn").addEventListener("click", () =>
+    connect().catch(showError)
+  );
+
+  $("disconnectBtn").addEventListener("click", () => {
+    db.auth.signOut().catch(showError);
+    online = false;
+    user = null;
+    if (channel) db.removeChannel(channel);
+    localLoad();
+    render();
+    connection("Local preview");
+    message("Signed out. Local browser data is being displayed.");
+  });
+
+  $("loginForm").addEventListener("submit", e =>
+    sendLogin(e).catch(showError)
+  );
+
+  // Start the application.
+
+  boot();
+
+  setInterval(() => {
+    if (tournament) {
+      timerTick().catch(showError);
+    }
+  }, 500);
+
 })();

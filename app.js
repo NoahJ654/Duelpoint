@@ -40,9 +40,9 @@
     return freshState();
   }
 
-  function save() {
-    localStorage.setItem(KEY, JSON.stringify(state));
-  }
+function save() {
+  localStorage.setItem(KEY, JSON.stringify(state));
+}
 
   function id() {
     return crypto.randomUUID

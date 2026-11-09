@@ -21,6 +21,7 @@
   let players = [];
   let rounds = [];
   let matches = [];
+  let publicTournamentData = null;
   let user = null;
   let online = false;
   let channel = null;

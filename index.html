@@ -56,6 +56,48 @@
         </div>
       </section>
 
+      <!-- PLAYER PORTAL -->
+
+<section id="playerPortal" class="panel hidden">
+
+  <div class="section-heading">
+    <div>
+      <p class="eyebrow">DUELPOINT PLAYER ACCESS</p>
+      <h2>Welcome, Duelist</h2>
+    </div>
+    <span class="step-tag">PLAYER LOGIN</span>
+  </div>
+
+  <form id="playerLoginForm">
+
+    <label for="playerSelect">SELECT YOUR NAME</label>
+    <select id="playerSelect" required>
+      <option value="">Loading players...</option>
+    </select>
+
+    <label for="playerPin">YOUR 8-DIGIT PIN</label>
+    <input
+      id="playerPin"
+      type="password"
+      inputmode="numeric"
+      pattern="[0-9]{8}"
+      minlength="8"
+      maxlength="8"
+      autocomplete="off"
+      placeholder="Enter your 8-digit PIN"
+      required
+    />
+
+    <button class="primary-btn full-btn" type="submit">
+      ENTER TOURNAMENT →
+    </button>
+
+  </form>
+
+  <p id="playerLoginMessage" class="settings-message" aria-live="polite"></p>
+
+</section>
+      
       <!-- TOURNAMENT SETUP -->
 
       <section id="setupPanel" class="panel setup-panel">

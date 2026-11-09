@@ -1525,9 +1525,9 @@ $("registeredPlayers").addEventListener("click", e => {
     sendLogin(e).catch(showError)
   );
 
-  $("passwordLoginForm").addEventListener("submit", e =>
-  sendPasswordLogin(e).catch(showError)
-);
+ $("passwordLoginForm").addEventListener("submit", (e) => {
+  sendPasswordLogin(e).catch(showError);
+});
   
 
   // Start the application.

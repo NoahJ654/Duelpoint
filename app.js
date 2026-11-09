@@ -1081,12 +1081,20 @@ async function setAdminPassword(event) {
     addPlayer($("playerName").value).catch(showError);
   });
 
-  $("registeredPlayers").addEventListener("click", e => {
-    const button = e.target.closest("[data-remove]");
-    if (button && confirm("Remove this player?")) {
-      removePlayer(button.dataset.remove).catch(showError);
-    }
-  });
+$("registeredPlayers").addEventListener("click", e => {
+  const pinButton = e.target.closest("[data-generate-pin]");
+
+  if (pinButton) {
+    generatePlayerPin(pinButton.dataset.generatePin).catch(showError);
+    return;
+  }
+
+  const button = e.target.closest("[data-remove]");
+
+  if (button && confirm("Remove this player?")) {
+    removePlayer(button.dataset.remove).catch(showError);
+  }
+});
 
   $("startTournamentBtn").addEventListener("click", () =>
     startTournament().catch(showError)

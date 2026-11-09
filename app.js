@@ -853,9 +853,10 @@ ${tournament.status === "setup"
     toast(`Round ${tournament.current_round} pairings generated.`);
   }
 
-  async function endTournament() {
-    if (!confirm("End this tournament now?")) return;
+ async function endTournament() {
+  if (!confirm("End this tournament now?")) return;
 
+  try {
     await saveTournament({
       status: "finished",
       timer_phase: "complete",
@@ -863,8 +864,20 @@ ${tournament.status === "setup"
       timer_remaining_seconds: 0
     });
 
+    if (online) {
+      await loadOnline();
+    }
+
+    $("tournamentPanel").classList.add("hidden");
+    $("setupPanel").classList.remove("hidden");
+    renderPlayers();
+    window.scrollTo({ top: 0, behavior: "smooth" });
+
     toast("Tournament ended.");
+  } catch (error) {
+    showError(error);
   }
+}
 
   function updatePublicTournamentLink() {
   const input = $("publicTournamentLink");

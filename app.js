@@ -842,6 +842,24 @@ ${tournament.status === "setup"
     toast("Tournament ended.");
   }
 
+  function updatePublicTournamentLink() {
+  const input = $("publicTournamentLink");
+  const button = $("copyPublicLinkBtn");
+
+  if (!tournament?.public_token || !online) {
+    input.value = "";
+    input.placeholder = "Connect to generate your tournament link";
+    button.disabled = true;
+    return;
+  }
+
+  const url = new URL(window.location.pathname, window.location.origin);
+  url.searchParams.set("t", tournament.public_token);
+
+  input.value = url.toString();
+  button.disabled = false;
+}
+  
   async function loadOnline() {
     if (refreshing) return;
     refreshing = true;
@@ -897,9 +915,10 @@ ${tournament.status === "setup"
       rounds = r.data || [];
       matches = (m.data || []).map(({ rounds: unused, ...match }) => match);
 
-      online = true;
-      connection("Online · synced", true);
-      render();
+     online = true;
+connection("Online · synced", true);
+updatePublicTournamentLink();
+render();
     } finally {
       refreshing = false;
     }
@@ -1146,6 +1165,20 @@ $("registeredPlayers").addEventListener("click", e => {
     $("settingsDialog").showModal()
   );
 
+  $("copyPublicLinkBtn").addEventListener("click", async () => {
+  const link = $("publicTournamentLink").value;
+
+  if (!link) return;
+
+  try {
+    await navigator.clipboard.writeText(link);
+    toast("Tournament link copied.");
+  } catch (error) {
+    $("publicTournamentLink").select();
+    message("Select and copy the tournament link manually.");
+  }
+});
+  
   $("connectBtn").addEventListener("click", () =>
     connect().catch(showError)
   );

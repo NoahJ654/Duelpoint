@@ -953,6 +953,33 @@ async function setAdminPassword(event) {
   message("Administrator password set successfully.");
   toast("Administrator password updated.");
 }
+  async function sendPasswordLogin(event) {
+  event.preventDefault();
+
+  const email = $("organiserEmail").value.trim();
+  const password = $("organiserPassword").value;
+
+  if (!email || !password) {
+    return message("Enter your administrator email and password.");
+  }
+
+  const { data, error } = await db.auth.signInWithPassword({
+    email,
+    password
+  });
+
+  if (error) throw error;
+
+  $("organiserPassword").value = "";
+  user = data.user;
+
+  await loadOnline();
+  subscribeRealtime();
+
+  message("Signed in successfully.");
+  toast("Administrator signed in.");
+}
+  
   async function sendLogin(event) {
     event.preventDefault();
 

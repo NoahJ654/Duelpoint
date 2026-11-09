@@ -541,12 +541,14 @@ $("nextRoundBtn").textContent =
 
   $("playerPortal").classList.add("hidden");
 
-  const active = tournament.status === "active";
-    
-  $("setupPanel").classList.toggle("hidden", active);
-  $("tournamentPanel").classList.toggle("hidden", !active);
+    const active = tournament.status === "active";
+  const finished = tournament.status === "finished";
+  const showTournament = active || finished;
 
-  if (active) {
+  $("setupPanel").classList.toggle("hidden", showTournament);
+  $("tournamentPanel").classList.toggle("hidden", !showTournament);
+
+  if (showTournament) {
     renderTimer();
     renderMatches();
     renderLeaderboard();

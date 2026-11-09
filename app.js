@@ -546,8 +546,8 @@ ${tournament.status === "setup"
 
   $("playerPortal").classList.add("hidden");
 
-  const active = tournament.status !== "setup";
-
+  const active = tournament.status === "active";
+    
   $("setupPanel").classList.toggle("hidden", active);
   $("tournamentPanel").classList.toggle("hidden", !active);
 

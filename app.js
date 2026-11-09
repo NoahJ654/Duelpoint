@@ -1118,10 +1118,33 @@ winnerSelect.innerHTML = `
   </option>
 `;
 
-$("playerResultForm").classList.toggle(
-  "hidden",
-  myMatch.result_status !== "pending"
-);
+    const submission = myMatch.submission;
+    const hasPendingSubmission =
+      submission?.status === "pending";
+
+    const opponentSubmitted =
+      hasPendingSubmission &&
+      submission.submitted_by_player_id !== playerId;
+
+    $("playerResultForm").classList.toggle(
+      "hidden",
+      myMatch.result_status !== "pending" || !!submission
+    );
+
+    $("playerConfirmationActions").classList.toggle(
+      "hidden",
+      !opponentSubmitted
+    );
+
+    if (opponentSubmitted) {
+      const proposedWinner = data.players.find(
+        p => p.id === submission.submitted_winner_id
+      );
+
+      $("playerConfirmationMessage").textContent =
+        `Your opponent proposed ${proposedWinner?.name || "a winner"} as the winner. Please confirm or dispute this result.`;
+    }
+
     const opponentId = myMatch.player_one_id === playerId
       ? myMatch.player_two_id
       : myMatch.player_one_id;
@@ -1137,7 +1160,13 @@ $("playerResultForm").classList.toggle(
         ? "Match result recorded."
         : myMatch.result_status === "bye"
           ? "You have received a round bye."
-          : "Your match is awaiting a result.";
+          : submission?.status === "disputed"
+            ? "Result disputed — awaiting organiser review."
+            : hasPendingSubmission && !opponentSubmitted
+              ? "Your result has been submitted. Waiting for your opponent."
+              : opponentSubmitted
+                ? "Your opponent has submitted a result. Please review it above."
+                : "Your match is awaiting a result.";
   } else {
     $("playerTable").textContent = "-";
     $("playerOpponent").textContent = "No current pairing";

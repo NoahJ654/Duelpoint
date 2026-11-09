@@ -1187,6 +1187,27 @@ async function setAdminPassword(event) {
     addPlayer($("playerName").value).catch(showError);
   });
 
+  $("playerLoginForm").addEventListener("submit", async e => {
+  e.preventDefault();
+
+  const playerId = $("playerSelect").value;
+  const pin = $("playerPin").value;
+
+  if (!playerId || !/^\d{8}$/.test(pin)) {
+    $("playerLoginMessage").textContent =
+      "Select your name and enter your 8-digit PIN.";
+    return;
+  }
+
+  try {
+    await loginPlayer(playerId, pin);
+  } catch (error) {
+    console.error(error);
+    $("playerLoginMessage").textContent =
+      error.message || "Player login failed.";
+  }
+});
+
 $("registeredPlayers").addEventListener("click", e => {
   const pinButton = e.target.closest("[data-generate-pin]");
 

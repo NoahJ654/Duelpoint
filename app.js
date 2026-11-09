@@ -32,6 +32,7 @@
   let rounds = [];
   let matches = [];
   let publicTournamentData = null;
+  let loggedInPlayerId = null;
   let user = null;
   let online = false;
   let channel = null;
@@ -909,7 +910,7 @@ ${tournament.status === "setup"
     `${data.name} · ${data.status}`;
 }
 
-  async function loginPlayer(playerId, pin) {
+async function loginPlayer(playerId, pin) {
   $("playerLoginMessage").textContent = "Verifying PIN...";
 
   const { data: sessionData, error: sessionError } =
@@ -919,7 +920,6 @@ ${tournament.status === "setup"
 
   if (!sessionData.session) {
     const { error } = await playerDb.auth.signInAnonymously();
-
     if (error) throw error;
   }
 
@@ -929,9 +929,23 @@ ${tournament.status === "setup"
   });
 
   if (error) throw error;
+  if (data !== true) throw new Error("Incorrect PIN. Please try again.");
+
+  loggedInPlayerId = playerId;
+
+  const player = publicTournamentData.players.find(
+    p => p.id === playerId
+  );
+
+  $("playerLoginForm").classList.add("hidden");
+  $("playerDashboard").classList.remove("hidden");
+
+  $("playerWelcome").textContent = `Welcome, ${player.name}`;
+  $("playerTournamentName").textContent = publicTournamentData.name;
+  $("playerCurrentRound").textContent =
+    publicTournamentData.current_round || "-";
 
   $("playerLoginMessage").textContent = "PIN verified successfully!";
-  return data;
 }
   
   async function loadOnline() {

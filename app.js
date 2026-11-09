@@ -1081,8 +1081,21 @@ async function setAdminPassword(event) {
   }
 
   async function boot() {
+  if (publicTournamentToken) {
     try {
-      const { data, error } = await db.auth.getSession();
+      await loadPublicTournament();
+    } catch (e) {
+      console.error(e);
+      $("playerLoginMessage").textContent =
+        "Could not load tournament: " + e.message;
+    }
+
+    render();
+    return;
+  }
+
+  try {
+    const { data, error } = await db.auth.getSession();
       if (error) throw error;
 
       if (data.session) {

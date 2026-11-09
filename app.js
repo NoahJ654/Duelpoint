@@ -33,6 +33,7 @@
   let matches = [];
   let publicTournamentData = null;
   let loggedInPlayerId = null;
+  let loggedInPlayerMatchId = null;
   let user = null;
   let online = false;
   let channel = null;

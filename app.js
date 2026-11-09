@@ -854,7 +854,7 @@ ${tournament.status === "setup"
   }
 
  async function endTournament() {
-  if (!confirm("End this tournament now?")) return;
+  if (!confirm("End this tournament and prepare a new one? Your current results will be preserved.")) return;
 
   try {
     await saveTournament({
@@ -865,15 +865,33 @@ ${tournament.status === "setup"
     });
 
     if (online) {
-      await loadOnline();
+      const { data, error } = await db
+        .from("tournaments")
+        .insert({
+          owner_id: user.id,
+          name: "Yu-Gi-Oh! Local Tournament"
+        })
+        .select()
+        .single();
+
+      if (error) throw error;
+      tournament = data;
+    } else {
+      const empty = blankState();
+      tournament = empty.tournament;
     }
 
-    $("tournamentPanel").classList.add("hidden");
-    $("setupPanel").classList.remove("hidden");
-    renderPlayers();
+    players = [];
+    rounds = [];
+    matches = [];
+
+    if (!online) localSave();
+
+    updatePublicTournamentLink();
+    render();
     window.scrollTo({ top: 0, behavior: "smooth" });
 
-    toast("Tournament ended.");
+    toast("Previous tournament saved. New tournament ready.");
   } catch (error) {
     showError(error);
   }

@@ -923,7 +923,36 @@
       connection("Sign-in required");
     }
   }
+async function setAdminPassword(event) {
+  event.preventDefault();
 
+  const password = $("adminPassword").value;
+
+  if (password.length < 12) {
+    return message("Use a password with at least 12 characters.");
+  }
+
+  const { data, error: sessionError } = await db.auth.getSession();
+
+  if (sessionError) throw sessionError;
+
+  if (!data.session || data.session.user.is_anonymous) {
+    return message(
+      "Sign in with your administrator account before setting a password."
+    );
+  }
+
+  const { error } = await db.auth.updateUser({
+    password: password
+  });
+
+  if (error) throw error;
+
+  $("adminPassword").value = "";
+
+  message("Administrator password set successfully.");
+  toast("Administrator password updated.");
+}
   async function sendLogin(event) {
     event.preventDefault();
 
@@ -1076,6 +1105,10 @@
   $("loginForm").addEventListener("submit", e =>
     sendLogin(e).catch(showError)
   );
+  
+  $("passwordForm").addEventListener("submit", e =>
+  setAdminPassword(e).catch(showError)
+);
 
   // Start the application.
 

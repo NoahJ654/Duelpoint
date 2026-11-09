@@ -997,6 +997,28 @@ async function loginPlayer(playerId, pin) {
     data.current_round || "-";
 
   if (myMatch) {
+    loggedInPlayerMatchId = myMatch.id;
+
+const winnerSelect = $("playerWinnerSelect");
+
+winnerSelect.innerHTML = `
+  <option value="">Select the winner</option>
+  <option value="${myMatch.player_one_id}">
+    ${escapeHTML(data.players.find(
+      p => p.id === myMatch.player_one_id
+    )?.name || "Player 1")}
+  </option>
+  <option value="${myMatch.player_two_id}">
+    ${escapeHTML(data.players.find(
+      p => p.id === myMatch.player_two_id
+    )?.name || "Player 2")}
+  </option>
+`;
+
+$("playerResultForm").classList.toggle(
+  "hidden",
+  myMatch.result_status !== "pending"
+);
     const opponentId = myMatch.player_one_id === playerId
       ? myMatch.player_two_id
       : myMatch.player_one_id;

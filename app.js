@@ -871,6 +871,33 @@ ${tournament.status === "setup"
   input.value = url.toString();
   button.disabled = false;
 }
+
+  async function loadPublicTournament() {
+  $("playerLoginMessage").textContent = "Loading tournament...";
+
+  const { data, error } = await db.rpc("get_public_tournament", {
+    p_token: publicTournamentToken
+  });
+
+  if (error) throw error;
+
+  if (!data) {
+    throw new Error("Tournament link is invalid or unavailable.");
+  }
+
+  publicTournamentData = data;
+
+  const select = $("playerSelect");
+
+  select.innerHTML =
+    '<option value="">Select your name</option>' +
+    (data.players || []).map(player =>
+      `<option value="${escapeHTML(player.id)}">${escapeHTML(player.name)}</option>`
+    ).join("");
+
+  $("playerLoginMessage").textContent =
+    `${data.name} · ${data.status}`;
+}
   
   async function loadOnline() {
     if (refreshing) return;

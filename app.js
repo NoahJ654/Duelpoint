@@ -311,8 +311,8 @@ ${tournament.status === "setup"
             : "All players will be paired."
         }`;
 
-    $("startTournamentBtn").disabled =
-      players.length < 2 || tournament.status !== "setup";
+     $("startTournamentBtn").disabled =
+  players.length < 2;
   }
 
   function renderLeaderboard() {

@@ -387,8 +387,18 @@ ${tournament.status === "setup"
   !allDone ||
   tournament.status !== "active";
 
-   $("nextRoundBtn").textContent =
+$("nextRoundBtn").textContent =
   "COMPLETE ROUND & NEXT →";
+}
+
+function renderHistory() {$("nextRoundBtn").disabled =
+  !allDone ||
+  tournament.status !== "active";
+
+$("nextRoundBtn").textContent =
+  "COMPLETE ROUND & NEXT →";
+}
+
   
   function renderHistory() {
     const done = rounds

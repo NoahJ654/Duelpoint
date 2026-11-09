@@ -13,6 +13,16 @@
   const SUPABASE_KEY = "sb_publishable_BvvXqO89ZysFP-nEsKXqRw_EvkC71Yj";
 
   const db = window.supabase.createClient(SUPABASE_URL, SUPABASE_KEY);
+  
+  const playerDb = window.supabase.createClient(
+  SUPABASE_URL,
+  SUPABASE_KEY,
+  {
+    auth: {
+      storageKey: "duelpoint-player-auth"
+    }
+  }
+);
 
   const publicTournamentToken =
   new URLSearchParams(window.location.search).get("t");

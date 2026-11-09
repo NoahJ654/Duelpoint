@@ -368,18 +368,22 @@ ${tournament.status === "setup"
                   ? `<span class="vs">VS</span><span>${escapeHTML(p2.name)}</span>`
                   : '<span class="bye-label">ROUND BYE · 3 PTS</span>'}
               </div>
-              <div class="match-meta">
+                            <div class="match-meta">
                 ${m.result_status === "complete"
                   ? `WINNER: ${escapeHTML(winner?.name || "Unknown")}`
-                  : m.result_status === "bye"
-                    ? "Automatic bye win"
-                    : "Awaiting result"}
+                  : m.result_status === "double_loss"
+                    ? "DOUBLE LOSS · BOTH PLAYERS LOSE"
+                    : m.result_status === "bye"
+                      ? "Automatic bye win"
+                      : "Awaiting result"}
               </div>
             </div>
             <div class="match-actions">
-              ${m.result_status === "complete" || m.result_status === "bye"
-                ? '<span class="result-done">RECORDED ✓</span>'
-                : `<button class="result-btn" data-result="${m.id}" ${canEnter ? "" : "disabled"}>ENTER RESULT</button>`}
+              ${m.result_status === "complete" ||
+                m.result_status === "bye" ||
+                m.result_status === "double_loss"
+                  ? '<span class="result-done">RECORDED ✓</span>'
+                  : `<button class="result-btn" data-result="${m.id}" ${canEnter ? "" : "disabled"}>ENTER RESULT</button>`}
             </div>
           </article>
         `;

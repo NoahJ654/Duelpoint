@@ -386,10 +386,11 @@ ${tournament.status === "setup"
       }).join("")
       : '<p class="empty-state">Create a round to generate pairings.</p>';
 
-    const allDone = list.length > 0 &&
+      const allDone = list.length > 0 &&
       list.every(m =>
         m.result_status === "complete" ||
-        m.result_status === "bye"
+        m.result_status === "bye" ||
+        m.result_status === "double_loss"
       );
 
    $("nextRoundBtn").disabled =

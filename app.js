@@ -825,10 +825,11 @@ $("nextRoundBtn").textContent =
   async function nextRound() {
     const list = currentMatches();
 
-    const allDone = list.length > 0 &&
+        const allDone = list.length > 0 &&
       list.every(m =>
         m.result_status === "complete" ||
-        m.result_status === "bye"
+        m.result_status === "bye" ||
+        m.result_status === "double_loss"
       );
 
     if (!allDone) return toast("Record every match result first.");

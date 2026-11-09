@@ -387,7 +387,7 @@ ${tournament.status === "setup"
   !allDone ||
   tournament.status !== "active";
 
-$("nextRoundBtn").textContent =
+   $("nextRoundBtn").textContent =
   "COMPLETE ROUND & NEXT →";
   
   function renderHistory() {

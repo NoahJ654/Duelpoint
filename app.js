@@ -1053,12 +1053,14 @@ async function submitPlayerMatchResult() {
          m.player_two_id === playerId
   );
 
-  const points = {};
+    const points = {};
   const wins = {};
+  const losses = {};
 
   (data.players || []).forEach(p => {
     points[p.id] = 0;
     wins[p.id] = 0;
+    losses[p.id] = 0;
   });
 
   (data.matches || []).forEach(m => {
@@ -1074,6 +1076,21 @@ async function submitPlayerMatchResult() {
         (points[m.winner_id] || 0) + 3;
       wins[m.winner_id] =
         (wins[m.winner_id] || 0) + 1;
+
+      const loserId =
+        m.winner_id === m.player_one_id
+          ? m.player_two_id
+          : m.player_one_id;
+
+      losses[loserId] =
+        (losses[loserId] || 0) + 1;
+    }
+
+    if (m.result_status === "double_loss") {
+      losses[m.player_one_id] =
+        (losses[m.player_one_id] || 0) + 1;
+      losses[m.player_two_id] =
+        (losses[m.player_two_id] || 0) + 1;
     }
   });
 

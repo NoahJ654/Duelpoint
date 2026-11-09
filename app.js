@@ -1347,6 +1347,11 @@ async function setAdminPassword(event) {
         connection("Signed out");
       }
     });
+
+$("submitPlayerResultBtn").addEventListener("click", () => {
+  submitPlayerMatchResult();
+});
+    
   }
 
   function showError(error) {

@@ -1522,7 +1522,14 @@ async function setAdminPassword(event) {
       error.message || "Could not submit result.";
   });
 });
-  
+    $("confirmPlayerResultBtn").addEventListener("click", () => {
+    confirmPlayerMatchResult();
+  });
+
+  $("disputePlayerResultBtn").addEventListener("click", () => {
+    disputePlayerMatchResult();
+  });
+    
   $("playerForm").addEventListener("submit", e => {
     e.preventDefault();
     addPlayer($("playerName").value).catch(showError);

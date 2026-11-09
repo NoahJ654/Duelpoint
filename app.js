@@ -150,9 +150,9 @@
       return toast("Maximum of 16 players.");
     }
 
-    if (tournament.status !== "setup") {
-  return toast("Players cannot be added after the tournament starts.");
- }
+
+
+    
 
     if (players.some(p =>
       p.name.toLowerCase() === clean.toLowerCase()

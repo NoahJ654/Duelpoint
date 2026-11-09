@@ -738,9 +738,11 @@ $("nextRoundBtn").textContent =
   async function saveResult() {
     if (!selectedMatch || !selectedWinner) return;
 
+        const isDoubleLoss = selectedWinner === "double_loss";
+
     const patch = {
-      winner_id: selectedWinner,
-      result_status: "complete"
+      winner_id: isDoubleLoss ? null : selectedWinner,
+      result_status: isDoubleLoss ? "double_loss" : "complete"
     };
 
     if (online) {

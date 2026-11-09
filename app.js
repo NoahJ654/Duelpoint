@@ -1384,7 +1384,6 @@ async function setAdminPassword(event) {
   // User interface events
 
   $("submitPlayerResultBtn").addEventListener("click", () => {
-    alert("Submit button handler triggered");
     submitPlayerMatchResult().catch(error => {
     console.error(error);
     $("playerResultMessage").textContent =

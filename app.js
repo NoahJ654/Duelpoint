@@ -14,6 +14,9 @@
 
   const db = window.supabase.createClient(SUPABASE_URL, SUPABASE_KEY);
 
+  const publicTournamentToken =
+  new URLSearchParams(window.location.search).get("t");
+
   let tournament = null;
   let players = [];
   let rounds = [];
@@ -521,21 +524,29 @@ ${tournament.status === "setup"
   }
 
   function render() {
-    const active = tournament.status !== "setup";
-
-    $("setupPanel").classList.toggle("hidden", active);
-    $("tournamentPanel").classList.toggle("hidden", !active);
-
-    if (active) {
-      renderTimer();
-      renderMatches();
-      renderLeaderboard();
-      renderHistory();
-    } else {
-      renderPlayers();
-    }
+  if (publicTournamentToken) {
+    $("playerPortal").classList.remove("hidden");
+    $("setupPanel").classList.add("hidden");
+    $("tournamentPanel").classList.add("hidden");
+    return;
   }
 
+  $("playerPortal").classList.add("hidden");
+
+  const active = tournament.status !== "setup";
+
+  $("setupPanel").classList.toggle("hidden", active);
+  $("tournamentPanel").classList.toggle("hidden", !active);
+
+  if (active) {
+    renderTimer();
+    renderMatches();
+    renderLeaderboard();
+    renderHistory();
+  } else {
+    renderPlayers();
+  }
+}
   function previousOpponents(playerId) {
     const seen = new Set();
 

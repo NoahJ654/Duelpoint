@@ -389,7 +389,7 @@ ${tournament.status === "setup"
 
 $("nextRoundBtn").textContent =
   "COMPLETE ROUND & NEXT →";
-
+  }
   function renderHistory() {
     const done = rounds
       .filter(r => r.status === "complete")

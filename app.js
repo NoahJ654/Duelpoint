@@ -946,6 +946,107 @@ async function loginPlayer(playerId, pin) {
     publicTournamentData.current_round || "-";
 
   $("playerLoginMessage").textContent = "PIN verified successfully!";
+  renderPlayerDashboard();
+}
+
+  function renderPlayerDashboard() {
+  const data = publicTournamentData;
+  const playerId = loggedInPlayerId;
+
+  const currentRound = (data.rounds || []).find(
+    r => r.round_number === data.current_round
+  );
+
+  const roundMatches = currentRound
+    ? (data.matches || []).filter(m => m.round_id === currentRound.id)
+    : [];
+
+  const myMatch = roundMatches.find(
+    m => m.player_one_id === playerId ||
+         m.player_two_id === playerId
+  );
+
+  const points = {};
+  const wins = {};
+
+  (data.players || []).forEach(p => {
+    points[p.id] = 0;
+    wins[p.id] = 0;
+  });
+
+  (data.matches || []).forEach(m => {
+    if (m.result_status === "bye") {
+      points[m.player_one_id] =
+        (points[m.player_one_id] || 0) + 3;
+      wins[m.player_one_id] =
+        (wins[m.player_one_id] || 0) + 1;
+    }
+
+    if (m.result_status === "complete" && m.winner_id) {
+      points[m.winner_id] =
+        (points[m.winner_id] || 0) + 3;
+      wins[m.winner_id] =
+        (wins[m.winner_id] || 0) + 1;
+    }
+  });
+
+  $("playerPoints").textContent = points[playerId] || 0;
+
+  $("playerCurrentRound").textContent =
+    data.current_round || "-";
+
+  if (myMatch) {
+    const opponentId = myMatch.player_one_id === playerId
+      ? myMatch.player_two_id
+      : myMatch.player_one_id;
+
+    const opponent = data.players.find(p => p.id === opponentId);
+
+    $("playerTable").textContent = myMatch.table_number;
+    $("playerOpponent").textContent =
+      opponent ? opponent.name : "Round bye";
+
+    $("playerMatchStatus").textContent =
+      myMatch.result_status === "complete"
+        ? "Match result recorded."
+        : myMatch.result_status === "bye"
+          ? "You have received a round bye."
+          : "Your match is awaiting a result.";
+  } else {
+    $("playerTable").textContent = "-";
+    $("playerOpponent").textContent = "No current pairing";
+    $("playerMatchStatus").textContent =
+      "Your next pairing will appear here when the round begins.";
+  }
+
+  const sortedPlayers = [...data.players].sort((a, b) =>
+    (points[b.id] || 0) - (points[a.id] || 0) ||
+    (wins[b.id] || 0) - (wins[a.id] || 0) ||
+    a.name.localeCompare(b.name)
+  );
+
+  $("playerStandings").innerHTML = `
+    <table>
+      <thead>
+        <tr>
+          <th>POSITION</th>
+          <th>PLAYER</th>
+          <th>WINS</th>
+          <th>POINTS</th>
+        </tr>
+      </thead>
+      <tbody>
+        ${sortedPlayers.map((p, i) => `
+          <tr>
+            <td>${i + 1}</td>
+            <td>${escapeHTML(p.name)}</td>
+            <td>${wins[p.id] || 0}</td>
+            <td>${points[p.id] || 0}</td>
+          </tr>
+        `).join("")}
+      </tbody>
+    </table>
+  `;
 }
   
   async function loadOnline() {

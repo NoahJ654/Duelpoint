@@ -248,18 +248,27 @@ async function generatePlayerPin(playerId) {
         a.hadBye = true;
       }
 
-      if (m.result_status === "complete" && a && b) {
-        a.opponents.push(b.player.id);
-        b.opponents.push(a.player.id);
+        if (
+        m.result_status === "complete" ||
+        m.result_status === "double_loss"
+      ) {
+        if (a && b) {
+          a.opponents.push(b.player.id);
+          b.opponents.push(a.player.id);
 
-        const winner = m.winner_id === a.player.id ? a : b;
-        const loser = winner === a ? b : a;
+          if (m.result_status === "double_loss") {
+            a.losses++;
+            b.losses++;
+          } else {
+            const winner = m.winner_id === a.player.id ? a : b;
+            const loser = winner === a ? b : a;
 
-        winner.wins++;
-        winner.points += 3;
-        loser.losses++;
+            winner.wins++;
+            winner.points += 3;
+            loser.losses++;
+          }
+        }
       }
-    });
 
     stats.forEach(s => {
       s.opponentPoints = s.opponents.reduce((total, id) => {

@@ -133,6 +133,24 @@
     <p id="playerMatchStatus" class="muted">
       Your next match will appear here.
     </p>
+    <div id="playerResultForm" class="hidden">
+  <label for="playerWinnerSelect">WHO WON THE MATCH?</label>
+
+  <select id="playerWinnerSelect" required>
+    <option value="">Select the winner</option>
+  </select>
+
+  <button
+    id="submitPlayerResultBtn"
+    class="primary-btn full-btn"
+    type="button"
+  >
+    SUBMIT MATCH RESULT →
+  </button>
+
+  <p id="playerResultMessage" class="settings-message"
+     aria-live="polite"></p>
+</div>
   </div>
 
   <div class="panel">

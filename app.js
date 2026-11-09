@@ -282,13 +282,11 @@ async function generatePlayerPin(playerId) {
     $("playerProgress").style.width =
       `${players.length / MAX_PLAYERS * 100}%`;
 
-    $("playerName").disabled =
-      players.length >= MAX_PLAYERS ||
-      tournament.status !== "setup";
+        $("playerName").disabled =
+      players.length >= MAX_PLAYERS;
 
     $("playerForm").querySelector("button").disabled =
-      players.length >= MAX_PLAYERS ||
-      tournament.status !== "setup";
+      players.length >= MAX_PLAYERS;
 
     $("registeredPlayers").innerHTML = players.length
       ? players.map((p, i) => `

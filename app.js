@@ -719,11 +719,26 @@ $("nextRoundBtn").textContent =
         ? "Extra time is active. Select the winner."
         : "Select the winner. The other player receives a loss.";
 
-    $("winnerChoices").innerHTML = [p1, p2].map(p => `
-      <button class="winner-choice" data-winner="${p.id}">
-        ${escapeHTML(p.name)} <span>— WINNER</span>
+        $("winnerChoices").innerHTML = `
+      ${[p1, p2].map(p => `
+        <button class="winner-choice" data-winner="${p.id}">
+          ${escapeHTML(p.name)} <span>— WINNER</span>
+        </button>
+      `).join("")}
+
+      <button class="winner-choice double-loss-choice" data-winner="double_loss">
+        DOUBLE LOSS <span>— BOTH PLAYERS LOSE</span>
       </button>
-    `).join("");
+    `;
+
+      <button class="winner-choice double-loss-choice" data-winner="double_loss">
+        DOUBLE LOSS <span>— BOTH PLAYERS LOSE</span>
+      </button>
+    `;
+      <button class="winner-choice double-loss-choice" data-winner="double_loss">
+        DOUBLE LOSS <span>— BOTH PLAYERS LOSE</span>
+      </button>
+    `;
 
     $("saveResultBtn").disabled = true;
     $("resultDialog").showModal();

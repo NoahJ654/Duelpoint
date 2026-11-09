@@ -1137,9 +1137,6 @@ async function setAdminPassword(event) {
   sendPasswordLogin(e).catch(showError)
 );
   
-  $("passwordForm").addEventListener("submit", e =>
-  setAdminPassword(e).catch(showError)
-);
 
   // Start the application.
 

@@ -908,6 +908,31 @@ ${tournament.status === "setup"
   $("playerLoginMessage").textContent =
     `${data.name} · ${data.status}`;
 }
+
+  async function loginPlayer(playerId, pin) {
+  $("playerLoginMessage").textContent = "Verifying PIN...";
+
+  const { data: sessionData, error: sessionError } =
+    await playerDb.auth.getSession();
+
+  if (sessionError) throw sessionError;
+
+  if (!sessionData.session) {
+    const { error } = await playerDb.auth.signInAnonymously();
+
+    if (error) throw error;
+  }
+
+  const { data, error } = await playerDb.rpc("verify_player_pin", {
+    p_player_id: playerId,
+    p_pin: pin
+  });
+
+  if (error) throw error;
+
+  $("playerLoginMessage").textContent = "PIN verified successfully!";
+  return data;
+}
   
   async function loadOnline() {
     if (refreshing) return;

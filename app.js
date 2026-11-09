@@ -950,6 +950,42 @@ async function loginPlayer(playerId, pin) {
   renderPlayerDashboard();
 }
 
+async function submitPlayerMatchResult() {
+  const winnerId = $("playerWinnerSelect").value;
+
+  if (!loggedInPlayerMatchId || !winnerId) {
+    $("playerResultMessage").textContent =
+      "Please select a match winner.";
+    return;
+  }
+
+  $("submitPlayerResultBtn").disabled = true;
+  $("playerResultMessage").textContent = "Submitting result...";
+
+  try {
+    const { error } = await playerDb.rpc("submit_match_result", {
+      p_match_id: loggedInPlayerMatchId,
+      p_winner_id: winnerId
+    });
+
+    if (error) throw error;
+
+    $("playerResultMessage").textContent =
+      "Result submitted! Waiting for your opponent to confirm.";
+
+    $("playerResultForm").classList.add("hidden");
+    $("playerMatchStatus").textContent =
+      "Result submitted — awaiting opponent confirmation.";
+  } catch (error) {
+    console.error(error);
+
+    $("playerResultMessage").textContent =
+      error.message || "Could not submit result.";
+
+    $("submitPlayerResultBtn").disabled = false;
+  }
+}
+  
   function renderPlayerDashboard() {
   const data = publicTournamentData;
   const playerId = loggedInPlayerId;

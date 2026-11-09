@@ -1378,10 +1378,7 @@ async function setAdminPassword(event) {
       }
     });
 
-$("submitPlayerResultBtn").addEventListener("click", () => {
-  submitPlayerMatchResult();
-});
-    
+
   }
 
   function showError(error) {
@@ -1391,6 +1388,14 @@ $("submitPlayerResultBtn").addEventListener("click", () => {
 
   // User interface events
 
+  $("submitPlayerResultBtn").addEventListener("click", () => {
+  submitPlayerMatchResult().catch(error => {
+    console.error(error);
+    $("playerResultMessage").textContent =
+      error.message || "Could not submit result.";
+  });
+});
+  
   $("playerForm").addEventListener("submit", e => {
     e.preventDefault();
     addPlayer($("playerName").value).catch(showError);

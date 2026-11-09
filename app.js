@@ -1154,10 +1154,11 @@ $("playerResultForm").classList.toggle(
   $("playerStandings").innerHTML = `
     <table>
       <thead>
-        <tr>
+                <tr>
           <th>POSITION</th>
           <th>PLAYER</th>
           <th>WINS</th>
+          <th>LOSSES</th>
           <th>POINTS</th>
         </tr>
       </thead>
@@ -1167,6 +1168,7 @@ $("playerResultForm").classList.toggle(
             <td>${i + 1}</td>
             <td>${escapeHTML(p.name)}</td>
             <td>${wins[p.id] || 0}</td>
+            <td>${losses[p.id] || 0}</td>
             <td>${points[p.id] || 0}</td>
           </tr>
         `).join("")}

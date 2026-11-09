@@ -172,6 +172,27 @@
     render();
   }
 
+async function generatePlayerPin(playerId) {
+  if (!online || !user || user.is_anonymous) {
+    return message("Administrator sign-in is required to generate PINs.");
+  }
+
+  const player = players.find(p => p.id === playerId);
+  if (!player) return;
+
+  if (!confirm(`Generate a new PIN for ${player.name}? Any previous PIN will stop working.`)) {
+    return;
+  }
+
+  const { data, error } = await db.rpc("generate_player_pin", {
+    p_player_id: playerId
+  });
+
+  if (error) throw error;
+
+  alert(`PLAYER: ${player.name}\n\nYOUR PLAYER PIN:\n${data}\n\nGive this PIN to the player privately. It will not be shown again.`);
+}
+  
   async function removePlayer(id) {
     if (online) {
       const { error } = await db

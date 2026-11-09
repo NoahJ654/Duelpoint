@@ -867,10 +867,11 @@ ${tournament.status === "setup"
     if (online) {
       const { data, error } = await db
         .from("tournaments")
-        .insert({
-          owner_id: user.id,
-          name: "Yu-Gi-Oh! Local Tournament"
-        })
+       .insert({
+      owner_id: user.id,
+      name: "Yu-Gi-Oh! Local Tournament",
+      created_at: new Date().toISOString()
+    })
         .select()
         .single();
 

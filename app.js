@@ -1035,6 +1035,65 @@ async function submitPlayerMatchResult() {
     $("submitPlayerResultBtn").disabled = false;
   }
 }
+    async function confirmPlayerMatchResult() {
+  if (!loggedInPlayerMatchId) return;
+
+  $("confirmPlayerResultBtn").disabled = true;
+  $("disputePlayerResultBtn").disabled = true;
+
+  try {
+    const { data, error } = await playerDb.rpc(
+      "confirm_match_result",
+      { p_match_id: loggedInPlayerMatchId }
+    );
+
+    if (error) throw error;
+    if (data !== true) {
+      throw new Error("Confirmation failed. Please refresh and try again.");
+    }
+
+    await loadPublicTournament();
+    renderPlayerDashboard();
+
+    $("playerMatchStatus").textContent =
+      "Result confirmed successfully.";
+  } catch (error) {
+    $("playerConfirmationMessage").textContent = error.message;
+  } finally {
+    $("confirmPlayerResultBtn").disabled = false;
+    $("disputePlayerResultBtn").disabled = false;
+  }
+}
+
+async function disputePlayerMatchResult() {
+  if (!loggedInPlayerMatchId) return;
+
+  $("confirmPlayerResultBtn").disabled = true;
+  $("disputePlayerResultBtn").disabled = true;
+
+  try {
+    const { data, error } = await playerDb.rpc(
+      "dispute_match_result",
+      { p_match_id: loggedInPlayerMatchId }
+    );
+
+    if (error) throw error;
+    if (data !== true) {
+      throw new Error("Dispute failed. Please refresh and try again.");
+    }
+
+    await loadPublicTournament();
+    renderPlayerDashboard();
+
+    $("playerMatchStatus").textContent =
+      "Result disputed — awaiting organiser review.";
+  } catch (error) {
+    $("playerConfirmationMessage").textContent = error.message;
+  } finally {
+    $("confirmPlayerResultBtn").disabled = false;
+    $("disputePlayerResultBtn").disabled = false;
+  }
+}
   
   function renderPlayerDashboard() {
   const data = publicTournamentData;

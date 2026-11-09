@@ -383,16 +383,12 @@ ${tournament.status === "setup"
         m.result_status === "bye"
       );
 
-    $("nextRoundBtn").disabled =
-      !allDone ||
-      tournament.status !== "active" ||
-      tournament.timer_phase !== "complete";
+   $("nextRoundBtn").disabled =
+  !allDone ||
+  tournament.status !== "active";
 
-    $("nextRoundBtn").textContent =
-      tournament.timer_phase === "complete"
-        ? "COMPLETE ROUND & NEXT →"
-        : "WAIT FOR ROUND TIMER TO FINISH";
-  }
+$("nextRoundBtn").textContent =
+  "COMPLETE ROUND & NEXT →";
 
   function renderHistory() {
     const done = rounds
@@ -816,9 +812,7 @@ ${tournament.status === "setup"
 
     if (!allDone) return toast("Record every match result first.");
 
-    if (tournament.timer_phase !== "complete") {
-      return toast("Wait until the 50 + 5 minute timer has finished.");
-    }
+
 
     const round = currentRound();
 

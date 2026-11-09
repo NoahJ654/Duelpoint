@@ -279,9 +279,12 @@ async function generatePlayerPin(playerId) {
         <span class="player-chip">
           <b>${String(i + 1).padStart(2, "0")}</b>
           ${escapeHTML(p.name)}
-          ${tournament.status === "setup"
-            ? `<button data-remove="${p.id}" aria-label="Remove player">×</button>`
-            : ""}
+         ${online && user && !user.is_anonymous
+  ? `<button data-generate-pin="${p.id}" type="button">PIN</button>`
+  : ""}
+${tournament.status === "setup"
+  ? `<button data-remove="${p.id}" aria-label="Remove player">×</button>`
+  : ""}
         </span>
       `).join("")
       : '<p class="empty-state">No players registered yet. Add your first duelist above.</p>';

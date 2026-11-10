@@ -269,7 +269,8 @@ async function generatePlayerPin(playerId) {
           }
         }
       }
-
+    });
+    
     stats.forEach(s => {
       s.opponentPoints = s.opponents.reduce((total, id) => {
         return total + (lookup.get(id)?.points || 0);
